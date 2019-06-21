@@ -12,14 +12,13 @@ source("functions.R")
 WGS84 <- crs("+init=epsg:4326")
 UTM38N <- crs("+init=epsg:32638")
 
-output_folder <- "20190619_final_sampling_new_shapes"
+output_folder <- "output/20190619_final_sampling_new_shapes"
 
 ##### Stratification #####
 # IAU shapes:
-stratification <- readOGR("IAU_DIBs_SubDistricts/irq_admbnda_adm3_cso_20190603.shp","irq_admbnda_adm3_cso_20190603")
+stratification <- readOGR("input/irq_admbnda_adm3_cso_20190603.shp","irq_admbnda_adm3_cso_20190603")
 
 # Generating ID's
-
 results <- c("script_Host","script_IDP_out_of_camp","script_Returnee")
 h_samples <- read.csv(sprintf("%s/sampling_frame_%s.csv",output_folder,results[1]), stringsAsFactors = F)
 idp_samples <- read.csv(sprintf("%s/sampling_frame_%s.csv",output_folder,results[2]), stringsAsFactors = F)
@@ -72,7 +71,7 @@ write.csv(df, sprintf("%s/Total_Summary_%s.csv",output_folder,output_folder),row
 
 
 ### Sampling areas
-military_areas <- readOGR("IAU_DIBs_SubDistricts/osm_landuse_military_iraq.shp","osm_landuse_military_iraq")
+military_areas <- readOGR("input/osm_landuse_military_iraq.shp","osm_landuse_military_iraq")
 mil_UTM <- spTransform(military_areas,UTM38N)
 mil_buffer <- gBuffer(mil_UTM, width=200,byid=T)
 remove_ids <- c("w393892097", "w393892109", "w290490545", "w393892106", "w393892110", "w393892122", "w393892108")
@@ -88,37 +87,31 @@ idp_areas$label <- psu$label[match(idp_areas$psu,psu$psu)]
 h_areas$label <- psu$label[match(h_areas$psu,psu$psu)]
 r_areas$label <- psu$label[match(r_areas$psu,psu$psu)]
 
-library(leaflet)
-library(htmlwidgets)
-url <- "https://api.mapbox.com/v3/mapbox.iraq/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoiYm91a2VwaWV0ZXJvdHRvdyIsImEiOiJjanZrem82ZnAwdTliNDRtbDljdHptaXpkIn0.vlYoVkiHTdvkHONpNqy_Sg"
-
-leaf <- rmapshaper::ms_simplify(h_areas)
-m <- leaflet(spdf) %>%
-  addTiles() %>%
-  addMarkers() %>%
-  addMarkers(missing$Longitude, missing$Latitude, icon=~icons(iconUrl="http://leafletjs.com/examples/custom-icons/leaf-red.png")) %>%
-  addPolygons(data=military_areas,color="green",highlightOptions = highlightOptions(color = "white", weight = 2,
-                                                  bringToFront = TRUE),
-              fillOpacity=0.75,
-              popupOptions=popupOptions(maxWidth="100%",closeOnClick=T)) %>%
-  addPolygons(data=af_wgs,color = "grey", weight = 1, smoothFactor = 0.5,
-              opacity = 1.0, fillOpacity = 0.5,
-              highlightOptions = highlightOptions(color = "white", weight = 2,
-                                                  bringToFront = TRUE)) %>%
-  #addCircleMarkers(data=h_sample_points, color="blue",radius=1)%>%
-  addLegend(colors=c("green","grey","blue"), labels=c("military areas","host pop sample areas","sample locations"))
-saveWidget(m,sprintf("%s/%s/map.html",getwd(),output_folder))
+# filter host districts for the selected ones
+host_districts <- read.csv("input/host_districts.csv")
+h_areas <- h_areas[which(h_areas$strata %in% host_districts$district),] 
 
 ##### Sample to maps.me input #####
-for (i in 1: nrow(h_areas)){
-  sample.to.kml(h_areas[i,], "Host", color="green")
+sample_points_host <- sample.to.kml(h_areas[1,], "Host", color="green", output_folder = output_folder)
+for (i in 2: nrow(h_areas)){
+  sample_points_host <- rbind(sample_points_host,
+                              sample.to.kml(h_areas[i,], "Host", color="green", output_folder = output_folder))
 }
-for (i in 1: nrow(idp_areas)){
-  sample.to.kml(idp_areas[i,], "IDP", color="blue")
+save(sample_points_host, file=sprintf("%s/kml_files/sample_points_host.R",output_folder))
+
+sample_points_idp <- sample.to.kml(idp_areas[1,], "IDP", color="blue", output_folder = output_folder)
+for (i in 2: nrow(idp_areas)){
+  sample_points_idp <- rbind(sample_points_idp,
+                              sample.to.kml(idp_areas[i,], "IDP", color="blue", output_folder = output_folder))
 }
-for (i in 1: nrow(r_areas)){
-  sample.to.kml(r_areas[i,], "Returnee", color="brown")
+save(sample_points_idp, file=sprintf("%s/kml_files/sample_points_idp.R",output_folder))
+
+sample_points_r <- sample.to.kml(r_areas[1,], "Returnee", color="brown", output_folder = output_folder)
+for (i in 2: nrow(r_areas)){
+  sample_points_r <- rbind(sample_points_r,
+                             sample.to.kml(r_areas[i,], "Returnee", color="brown", output_folder = output_folder))
 }
+save(sample_points_r, file=sprintf("%s/kml_files/sample_points_r.R",output_folder))
 
 
 

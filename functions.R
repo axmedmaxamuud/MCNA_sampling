@@ -79,7 +79,7 @@ create.sample.area <- function(samples, mil_areas){
   }
   af_wgs <- spTransform(af,WGS84)
 }
-sample.to.kml <- function(area, type, color){
+sample.to.kml <- function(area, type, color, samplepoints=T, output_folder){
   colour <- ifelse(color=="green", "darkgreen", ifelse(color=="brown","darkbrown",color))
   centers <- data.frame(gCentroid(area, byid = TRUE))
   centers$label <- sprintf("This marker is not the specific place for the interview! For Host look at the red markers and for IDP/Returnee find households within the green area.\n\nName: %s\nSurveys: %d\nPopulation group: %s",area$label,area$survey_buffer,type)
@@ -112,13 +112,14 @@ sample.to.kml <- function(area, type, color){
   kml_layer(cen,plot.labpt=T, points_names=gsub("&","-",cen$lbl), html.table=gsub("&","-",cen$label),
             subfolder.name="centrepoint")
   
-  if (type=="Host"){
+  if (samplepoints){
     sample_points <- sampling(area,1)
     kml_layer(sample_points, plot.labpt=T, points_names=gsub("&","-",sample_points$label),
               html.table="single samplepoint", subfolder.name="samplepoints")
   }
   kml_close(file.name=filename)
   fix.styling.for.maps.me(filename, color)
+  if (samplepoints){return(sample_points)}
 }
 fix.styling.for.maps.me <- function(file, color){
   tx <- readLines(file)
@@ -130,4 +131,27 @@ fix.styling.for.maps.me <- function(file, color){
                          x=tx[matches[2]])
   writeLines(tx2,con=file)
 }
-#grep("<styleUrl>#placemark-green</styleUrl>",tx2)
+map_military <- function(){
+  if(F){ # <-- dont run!
+  library(leaflet)
+  library(htmlwidgets)
+  url <- "https://api.mapbox.com/v3/mapbox.iraq/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoiYm91a2VwaWV0ZXJvdHRvdyIsImEiOiJjanZrem82ZnAwdTliNDRtbDljdHptaXpkIn0.vlYoVkiHTdvkHONpNqy_Sg"
+  
+  leaf <- rmapshaper::ms_simplify(h_areas)
+  m <- leaflet(spdf) %>%
+    addTiles() %>%
+    addMarkers() %>%
+    addMarkers(missing$Longitude, missing$Latitude, icon=~icons(iconUrl="http://leafletjs.com/examples/custom-icons/leaf-red.png")) %>%
+    addPolygons(data=military_areas,color="green",highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                                                      bringToFront = TRUE),
+                fillOpacity=0.75,
+                popupOptions=popupOptions(maxWidth="100%",closeOnClick=T)) %>%
+    addPolygons(data=af_wgs,color = "grey", weight = 1, smoothFactor = 0.5,
+                opacity = 1.0, fillOpacity = 0.5,
+                highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                    bringToFront = TRUE)) %>%
+    #addCircleMarkers(data=h_sample_points, color="blue",radius=1)%>%
+    addLegend(colors=c("green","grey","blue"), labels=c("military areas","host pop sample areas","sample locations"))
+  saveWidget(m,sprintf("%s/%s/map.html",getwd(),output_folder))
+  }
+}
